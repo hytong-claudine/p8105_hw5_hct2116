@@ -6,5 +6,49 @@ output: github_document
 ---
 
 ```{r setup}
-knitr::opts_chunk$set(echo = TRUE)
+set.seed(2026)
+library(ggplot2)
 ```
+
+## Problem 1
+
+```{r}
+has_shared_birthday <- function(group_size) {
+  birthdays <- sample(1:365, size = group_size, replace = TRUE)
+  any(duplicated(birthdays))
+}
+```
+
+```{r}
+simulation_results <- expand.grid(
+  group_size = 2:50,
+  simulation = seq_len(10000)
+)
+
+simulation_results$shared_birthday <- vapply(
+  simulation_results$group_size,
+  has_shared_birthday,
+  logical(1)
+)
+
+birthday_probabilities <- aggregate(
+  shared_birthday ~ group_size,
+  data = simulation_results,
+  FUN = mean
+)
+```
+
+```{r}
+ggplot(birthday_probabilities, aes(x = group_size, y = shared_birthday)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 1.5) +
+  scale_x_continuous(breaks = seq(0, 50, by = 5)) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(
+    title = "Probability of at least one shared birthday",
+    x = "Group size",
+    y = "Estimated probability"
+  )
+```
+
+The estimated probability rises as the group gets larger. And the trend of rising first increases than slows down. This happens because there are many possible pairs of people that could match: adding people creates more opportunities for a shared birthday.
