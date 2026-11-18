@@ -6,11 +6,9 @@ output: github_document
 ---
 
 ```{r setup}
-set.seed(2026)
 library(ggplot2)
 library(tidyverse)
 library(dplyr)
-library(purrr)
 library(readr)
 library(tidyr)
 ```
@@ -18,6 +16,8 @@ library(tidyr)
 ## Problem 1
 
 ```{r}
+set.seed(2026)
+
 has_shared_birthday <- function(group_size) {
   birthdays <- sample(1:365, size = group_size, replace = TRUE)
   any(duplicated(birthdays))
@@ -79,21 +79,19 @@ participants <- files %>%
     names = c("arm", "participant_id")
   )
 
-longitudinal_data <- participants %>%
+data <- participants %>%
   pivot_longer(
     cols = starts_with("week_"),
     names_to = "week",
     values_to = "observation"
   ) %>%
   mutate(week = parse_number(week))
-
-longitudinal_data
 ```
 
 
 ```{r}
 ggplot(
-  longitudinal_data,
+  data,
   aes(x = week, y = observation, group = participant_id, color = participant_id)
 ) +
   geom_line(alpha = .6) +
@@ -110,4 +108,87 @@ separate panels for the control and experimental arms. The experimental group
 generally shows an upward trajectory over time, while the control group is
 comparatively stable. Individual trajectories vary within each group, but the
 overall pattern suggests that observed value in participants increased more in the experimental arm.
+
+## Problem 3
+```{r}
+set.seed(1000)
+
+power_simulation <- expand_grid(
+  true_mean = 0:6,
+  simulation = seq_len(5000)
+) %>%
+  mutate(
+    test_results = map(true_mean, function(mu) {
+      sample_data <- rnorm(n = 30, mean = mu, sd = 5)
+      broom::tidy(t.test(sample_data, mu = 0))
+    })
+  ) %>%
+  unnest(test_results) %>%
+  mutate(reject_null = p.value < 0.05)
+
+power_summary <- power_simulation %>%
+  group_by(true_mean) %>%
+  summarize(
+    power = mean(reject_null),
+    mean_estimate = mean(estimate),
+    mean_estimate_when_rejected = mean(estimate[reject_null]),
+    .groups = "drop"
+  )
+
+power_summary
+```
+
+```{r}
+ggplot(power_summary, aes(x = true_mean, y = power)) +
+  geom_line() +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = 0:6) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(
+    title = "Power of a one-sample t-test",
+    x = "True population mean",
+    y = "Proportion of tests rejecting the null (Power)"
+  )
+```
+Power increases with the difference between the true mean and
+the null value of 0. When the true mean is 0, the rejection proportion should
+be near the 5% significance level. As the true mean moves away from 0, the
+test more often detects the difference and power approaches 100%.
+
+```{r}
+estimate_summary <- power_summary %>%
+  select(true_mean, mean_estimate, mean_estimate_when_rejected) %>%
+  pivot_longer(
+    cols = c(mean_estimate, mean_estimate_when_rejected),
+    names_to = "estimate_type",
+    values_to = "average_estimate"
+  ) %>%
+  mutate(
+    estimate_type = recode(
+      estimate_type,
+      mean_estimate = "All samples",
+      mean_estimate_when_rejected = "Null rejected"
+    )
+  )
+
+ggplot(estimate_summary, aes(x = true_mean, y = average_estimate,
+                             color = estimate_type, linetype = estimate_type)) +
+  geom_line() +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = 0:6) +
+  labs(
+    title = "Average estimated mean by true mean",
+    x = "True population mean",
+    y = "Average estimated mean",
+    color = "Samples",
+    linetype = "Samples"
+  ) 
+```
+Across all samples, the average estimate should be close to the true mean,
+because the sample mean is an unbiased estimator. Among only the samples that
+reject the null, the average estimate is generally farther from 0, especially
+for small nonzero true means. This happens because selection on a significant
+result favors samples whose estimates happened to fall far enough from 0 to
+cross the significance threshold. Therefore, the average estimate in
+significant samples is not generally equal to the true mean.
 
