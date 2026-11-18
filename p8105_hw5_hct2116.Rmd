@@ -1,0 +1,10 @@
+---
+title: "p8105_hw5_hct2116"
+author: "Haoyun Tong"
+date: "2026-11-18"
+output: github_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+```
