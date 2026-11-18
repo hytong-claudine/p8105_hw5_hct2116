@@ -8,6 +8,11 @@ output: github_document
 ```{r setup}
 set.seed(2026)
 library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(purrr)
+library(readr)
+library(tidyr)
 ```
 
 ## Problem 1
@@ -51,4 +56,58 @@ ggplot(birthday_probabilities, aes(x = group_size, y = shared_birthday)) +
   )
 ```
 
-The estimated probability rises as the group gets larger. And the trend of rising first increases than slows down. This happens because there are many possible pairs of people that could match: adding people creates more opportunities for a shared birthday.
+The estimated probability rises as the group gets larger. The increase is steepest at moderate group sizes, then slows as the probability approaches 1. This happens because there are many possible pairs of people that could match: adding people creates more opportunities for a shared birthday.
+
+## Problem 2
+
+After downloading `hw5_data.zip` from the assignment link and uncompressing it
+into a folder named `data` in this homework directory, the code below reads
+each participant's file. The filenames encode the study arm and subject ID
+(for example, `con_1.csv` and `exp_1.csv`).
+
+```{r}
+files <- list.files("./data", full.names = TRUE)
+
+participants <- files %>%
+  set_names(basename(files)) %>%
+  map(~ read_csv(.x, show_col_types = FALSE)) %>%
+  bind_rows(.id = "file_name") %>%
+  mutate(file_name = sub("\\.csv$", "", file_name)) %>%
+  separate_wider_delim(
+    file_name,
+    delim = "_",
+    names = c("arm", "participant_id")
+  )
+
+longitudinal_data <- participants %>%
+  pivot_longer(
+    cols = starts_with("week_"),
+    names_to = "week",
+    values_to = "observation"
+  ) %>%
+  mutate(week = parse_number(week))
+
+longitudinal_data
+```
+
+
+```{r}
+ggplot(
+  longitudinal_data,
+  aes(x = week, y = observation, group = participant_id, color = participant_id)
+) +
+  geom_line(alpha = .6) +
+  facet_grid(. ~ arm) +
+  labs(
+    title = "Weekly observations by study arm",
+    x = "Week",
+    y = "Observation"
+  ) +
+  guides(color = "none")
+```
+The spaghetti plot shows each participant's measurements over time in
+separate panels for the control and experimental arms. The experimental group
+generally shows an upward trajectory over time, while the control group is
+comparatively stable. Individual trajectories vary within each group, but the
+overall pattern suggests that observed value in participants increased more in the experimental arm.
+
